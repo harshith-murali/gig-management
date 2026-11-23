@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f7f5" />
+    <title>Sahaaya | Cooperative services</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#overview" aria-label="Sahaaya home">
+          <span class="brand-mark">s</span>
+          <span><strong>sahaaya</strong><small>CO-OP SERVICES</small></span>
+        </a>
+
+        <div class="nav-label">MENU</div>
+        <nav class="side-nav" id="sidebarNavigation" aria-label="Main navigation">
+          <a class="nav-link active" href="#overview"><span class="nav-icon">⌂</span>Overview</a>
+          <a class="nav-link" href="#services"><span class="nav-icon">＋</span>Book a service</a>
+          <a class="nav-link" href="#allocation"><span class="nav-icon">⇄</span>Fair allocation</a>
+          <a class="nav-link" href="#welfare"><span class="nav-icon">♡</span>Worker welfare</a>
+          <a class="nav-link" href="#bookings"><span class="nav-icon">▤</span>My requests</a>
+        </nav>
+
+        <div class="sidebar-spacer"></div>
+        <div class="coop-card">
+          <span class="coop-card-icon">✳</span>
+          <strong>Owned by the people who work here.</strong>
+          <p>Every booking strengthens local cooperative livelihoods.</p>
+          <a href="#allocation">How it works <span>↗</span></a>
+        </div>
+        <div class="profile-row">
+          <div class="profile-avatar" id="profileAvatar">RS</div>
+          <div><strong id="profileName">Riya Sharma</strong><small id="profileMeta">Customer account</small></div>
+          <span class="profile-more">···</span>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="location"><span class="location-pin">●</span><span><small>YOUR AREA</small><strong>Indiranagar, Bengaluru</strong></span><span class="chevron">⌄</span></div>
+          <div class="top-actions">
+            <div class="role-switch" role="tablist" aria-label="Choose workspace">
+              <button class="role-tab active" type="button" data-role="customer" aria-selected="true">Customer</button>
+              <button class="role-tab" type="button" data-role="worker" aria-selected="false">Worker</button>
+              <button class="role-tab" type="button" data-role="admin" aria-selected="false">Federation</button>
+            </div>
+            <span class="demo-pill"><i></i> Local demo</span>
+            <div class="top-avatar" id="topAvatar">RS</div>
+          </div>
+        </header>
+
+        <div class="page-wrap" id="customerView">
+          <section class="hero" id="overview">
+            <div class="hero-copy">
+              <div class="eyebrow light"><span class="eyebrow-line"></span>GOOD WORK, SHARED FAIRLY</div>
+              <h1>Good help,<br /><em>close to home.</em></h1>
+              <p>Book trusted household services from verified local cooperative members. Your request helps work move around the community.</p>
+              <div class="hero-actions"><a class="button button-light" href="#services">Explore services <span>↗</span></a><span class="trust-note"><span class="trust-check">✓</span> Verified local members</span></div>
+            </div>
+            <div class="hero-art" aria-hidden="true">
+              <div class="art-sun"></div><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+              <div class="art-house"><div class="roof"></div><div class="house-body"><div class="house-window"></div><div class="house-door"></div></div><div class="house-step"></div></div>
+              <div class="art-spark spark-one">✦</div><div class="art-spark spark-two">✦</div>
+              <div class="art-note"><span class="note-check">✓</span><span><strong>Member verified</strong><small>Skill + co-op checked</small></span></div>
+              <div class="art-tag">A fairer way to get things done</div>
+            </div>
+            <div class="hero-foot"><span><b>01</b> Local skills</span><span class="hero-foot-line"></span><span><b>02</b> Fair allocation</span><span class="hero-foot-line"></span><span><b>03</b> Worker welfare</span></div>
+          </section>
+
+          <section class="metrics" aria-label="Network summary">
+            <div class="metric"><span class="metric-icon icon-people">♙</span><span><strong id="memberMetric">9 sample</strong><small>member profiles</small></span></div>
+            <div class="metric"><span class="metric-icon icon-skills">✳</span><span><strong>4 services</strong><small>in this demo</small></span></div>
+            <div class="metric"><span class="metric-icon icon-welfare">♡</span><span><strong id="welfareMetric">₹0</strong><small>worker welfare funded</small></span></div>
+            <div class="metric metric-note"><span class="metric-stars">★★★★★</span><small>Built on trust, kept accountable.</small></div>
+          </section>
+
+          <section class="section-block" id="services">
+            <div class="section-heading"><div><div class="eyebrow">HOUSEHOLD SERVICES</div><h2>What can we help with?</h2><p>Choose a service. We’ll find an available, verified member nearby.</p></div><span class="section-index">01 <i></i> 04</span></div>
+            <div class="service-grid">
+              <article class="service-card" data-card="Electrician"><div class="service-top"><span class="service-icon electrician">ϟ</span><span class="service-arrow">↗</span></div><h3>Electrical</h3><p>Repairs, switches, lights &amp; wiring.</p><div class="service-bottom"><span>From <strong>₹450</strong></span><button class="text-button book-service" data-service="Electrician">Book now <span>→</span></button></div></article>
+              <article class="service-card" data-card="Plumber"><div class="service-top"><span class="service-icon plumber">≈</span><span class="service-arrow">↗</span></div><h3>Plumbing</h3><p>Leaks, fittings, taps &amp; everyday fixes.</p><div class="service-bottom"><span>From <strong>₹600</strong></span><button class="text-button book-service" data-service="Plumber">Book now <span>→</span></button></div></article>
+              <article class="service-card" data-card="Carpenter"><div class="service-top"><span class="service-icon carpenter">⌁</span><span class="service-arrow">↗</span></div><h3>Carpentry</h3><p>Furniture repair, doors &amp; small builds.</p><div class="service-bottom"><span>From <strong>₹550</strong></span><button class="text-button book-service" data-service="Carpenter">Book now <span>→</span></button></div></article>
+              <article class="service-card" data-card="Care worker"><div class="service-top"><span class="service-icon care">♡</span><span class="service-arrow">↗</span></div><h3>Care support</h3><p>Reliable daily and community care.</p><div class="service-bottom"><span>From <strong>₹700</strong></span><button class="text-button book-service" data-service="Care worker">Book now <span>→</span></button></div></article>
+            </div>
+          </section>
+
+          <section class="insight-grid">
+            <article class="allocation-card" id="allocation">
+              <div class="insight-title"><span class="insight-icon alloc-icon">⇄</span><div><div class="eyebrow">A DIFFERENT KIND OF MATCH</div><h2>Work goes around.</h2></div><span class="card-kicker">FAIR ALLOCATION</span></div>
+              <p class="insight-copy">Eligible members are matched by skill, availability and service area. When more than one person fits, members who have had fewer recent jobs get priority.</p>
+              <div class="workload-chart" id="workloadChart" aria-label="Recent job distribution"></div>
+              <a class="inline-link" href="#allocation">See how allocation works <span>→</span></a>
+            </article>
+            <article class="welfare-card" id="welfare"><div class="welfare-head"><span class="welfare-heart">♡</span><span class="welfare-label">WORKER WELFARE</span></div><h2>Care built<br />into every job.</h2><p>A visible contribution from each completed booking helps the cooperative fund member welfare and protection.</p><div class="welfare-footer"><div class="welfare-bubbles"><span>AK</span><span>NM</span><span>+6</span></div><span>Member-first, by design <b>↗</b></span></div></article>
+          </section>
+
+          <section class="requests-section" id="bookings">
+            <div class="section-heading compact"><div><div class="eyebrow">YOUR ACTIVITY</div><h2>My requests</h2></div><span class="requests-count" id="requestCount">0 requests</span></div>
+            <div class="empty-state" id="emptyState"><span class="empty-icon">▤</span><div><strong>Your bookings will show up here.</strong><p>Choose a service above to get started.</p></div><a href="#services">Browse services <span>→</span></a></div>
+            <div class="request-list" id="requestList" aria-live="polite"></div>
+          </section>
+
+          <footer class="page-footer"><span>SAHAAYA <i>·</i> A COOPERATIVE SERVICES PROTOTYPE</span><span>Sample member profiles and illustrative prices</span></footer>
+        </div>
+        <div class="page-wrap role-view" id="roleView" hidden></div>
+      </main>
+    </div>
+
+    <dialog class="booking-dialog" id="bookingDialog" aria-labelledby="dialogTitle">
+      <div class="dialog-head"><div><div class="eyebrow">BOOK A LOCAL MEMBER</div><h2 id="dialogTitle">Request a service</h2></div><button class="close-dialog" id="closeDialog" aria-label="Close">×</button></div>
+      <div id="dialogContent"></div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
