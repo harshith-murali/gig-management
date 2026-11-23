@@ -1,643 +1,257 @@
-const STORAGE_KEY = 'sahaaya-coop-demo-v2';
-const DAY = 24 * 60 * 60 * 1000;
-const serviceCatalog = {
-  Electrician: { slug: 'electrician', label: 'Electrical repair', cardTitle: 'Electrical', icon: 'ϟ', tone: 'electrician' },
-  Plumber: { slug: 'plumber', label: 'Plumbing service', cardTitle: 'Plumbing', icon: '≈', tone: 'plumber' },
-  Carpenter: { slug: 'carpenter', label: 'Carpentry service', cardTitle: 'Carpentry', icon: '⌁', tone: 'carpenter' },
-  'Care worker': { slug: 'care-worker', label: 'Care support', cardTitle: 'Care support', icon: '♡', tone: 'care' },
-};
-const serviceAreas = ['Indiranagar', 'Domlur', 'HAL'];
+const state = { user: null, services: [], areas: [], bookings: [], workers: [], worker: null, ledger: [], settings: null, metrics: null, view: 'overview', authMode: 'login' };
+const $ = (selector, parent = document) => parent.querySelector(selector);
+const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
+const authScreen = $('#authScreen');
+const appShell = $('#appShell');
+const content = $('#content');
+const modal = $('#modal');
+let toastTimer;
 
-function seedHistory(count) {
-  return Array.from({ length: count }, (_, index) => Date.now() - (index + 1) * DAY);
-}
-
-function defaultState() {
-  const now = Date.now();
-  const commonAreas = [...serviceAreas];
-  return {
-    schema: 2,
-    role: 'customer',
-    currentMemberId: 'm-arjun',
-    nextBookingNumber: 1,
-    settings: {
-      welfareRate: 0.07,
-      operationsRate: 0.05,
-      rules: {
-        Electrician: { basePrice: 450, wageFloor: 350 },
-        Plumber: { basePrice: 600, wageFloor: 450 },
-        Carpenter: { basePrice: 550, wageFloor: 420 },
-        'Care worker': { basePrice: 700, wageFloor: 500 },
-      },
-    },
-    members: [
-      { id: 'm-arjun', name: 'Arjun Kumar', initials: 'AK', skill: 'Electrician', cooperative: 'Domlur Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 1.8, Domlur: 1.1, HAL: 2.2 }, rating: 4.8, verified: true, available: true, jobHistory: seedHistory(2), lastAssignedAt: now - 36 * 60 * 60 * 1000, certificate: 'Electrical safety' },
-      { id: 'm-kavya', name: 'Kavya Reddy', initials: 'KR', skill: 'Electrician', cooperative: 'Indiranagar Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 0.9, Domlur: 1.7, HAL: 2.5 }, rating: 4.9, verified: true, available: true, jobHistory: seedHistory(4), lastAssignedAt: now - 8 * 60 * 60 * 1000, certificate: 'Electrical installation' },
-      { id: 'm-naveen', name: 'Naveen M', initials: 'NM', skill: 'Electrician', cooperative: 'HAL Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 2.1, Domlur: 2.5, HAL: 0.9 }, rating: 4.7, verified: true, available: true, jobHistory: seedHistory(3), lastAssignedAt: now - 72 * 60 * 60 * 1000, certificate: 'Electrical maintenance' },
-      { id: 'm-shilpa', name: 'Shilpa Rao', initials: 'SR', skill: 'Plumber', cooperative: 'Indiranagar Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 1.1, Domlur: 2.1, HAL: 2.6 }, rating: 4.9, verified: true, available: true, jobHistory: seedHistory(2), lastAssignedAt: now - 48 * 60 * 60 * 1000, certificate: 'Plumbing' },
-      { id: 'm-mahesh', name: 'Mahesh B', initials: 'MB', skill: 'Plumber', cooperative: 'Domlur Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 1.5, Domlur: 0.8, HAL: 2.3 }, rating: 4.8, verified: true, available: true, jobHistory: seedHistory(3), lastAssignedAt: now - 26 * 60 * 60 * 1000, certificate: 'Pipe fitting' },
-      { id: 'm-ravi', name: 'Ravi Kumar', initials: 'RK', skill: 'Carpenter', cooperative: 'HAL Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 2.0, Domlur: 2.6, HAL: 1.0 }, rating: 4.8, verified: true, available: true, jobHistory: seedHistory(1), lastAssignedAt: now - 84 * 60 * 60 * 1000, certificate: 'Carpentry' },
-      { id: 'm-farah', name: 'Farah S', initials: 'FS', skill: 'Carpenter', cooperative: 'Indiranagar Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 0.8, Domlur: 1.8, HAL: 2.4 }, rating: 4.9, verified: true, available: true, jobHistory: seedHistory(3), lastAssignedAt: now - 20 * 60 * 60 * 1000, certificate: 'Furniture repair' },
-      { id: 'm-meena', name: 'Meena Joseph', initials: 'MJ', skill: 'Care worker', cooperative: 'Indiranagar Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 1.2, Domlur: 2.0, HAL: 2.2 }, rating: 5.0, verified: true, available: true, jobHistory: seedHistory(2), lastAssignedAt: now - 48 * 60 * 60 * 1000, certificate: 'Community care' },
-      { id: 'm-lakshmi', name: 'Lakshmi N', initials: 'LN', skill: 'Care worker', cooperative: 'Domlur Co-operative', serviceAreas: commonAreas, distances: { Indiranagar: 1.7, Domlur: 0.7, HAL: 2.4 }, rating: 4.8, verified: true, available: true, jobHistory: seedHistory(2), lastAssignedAt: now - 14 * 60 * 60 * 1000, certificate: 'Care support' },
-    ],
-    bookings: [],
-    ledger: [],
-  };
-}
-
-function loadState() {
-  const base = defaultState();
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (!saved || saved.schema !== 2) return base;
-    return {
-      ...base,
-      ...saved,
-      settings: { ...base.settings, ...saved.settings, rules: { ...base.settings.rules, ...(saved.settings?.rules || {}) } },
-      members: Array.isArray(saved.members) ? saved.members : base.members,
-      bookings: Array.isArray(saved.bookings) ? saved.bookings : [],
-      ledger: Array.isArray(saved.ledger) ? saved.ledger : [],
-    };
-  } catch {
-    return base;
-  }
-}
-
-let state = loadState();
-let activeDraft = null;
-let toastTimer = null;
-const dialog = document.querySelector('#bookingDialog');
-const dialogTitle = document.querySelector('#dialogTitle');
-const dialogContent = document.querySelector('#dialogContent');
-const customerView = document.querySelector('#customerView');
-const roleView = document.querySelector('#roleView');
-const toast = document.querySelector('#toast');
-
-function persist() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    showToast('Browser storage is unavailable; changes may not persist after refresh.');
-  }
-}
-
-function esc(value) {
+function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
-
-function money(amount) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(amount) || 0);
-}
-
-function dayLabel(iso) {
-  if (!iso) return 'Date not set';
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function tomorrowISO() {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function memberById(id) {
-  return state.members.find((member) => member.id === id) || null;
-}
-
-function quoteFor(serviceKey) {
-  const rule = state.settings.rules[serviceKey];
-  let total = Math.max(1, Number(rule.basePrice) || 1);
-  const floor = Math.max(1, Number(rule.wageFloor) || 1);
-  const welfareRate = Math.max(0, Number(state.settings.welfareRate) || 0);
-  const operationsRate = Math.max(0, Number(state.settings.operationsRate) || 0);
-  let welfare = Math.round(total * welfareRate);
-  let operations = Math.round(total * operationsRate);
-  let payout = total - welfare - operations;
-  while (payout < floor && total < 1000000) {
-    total += 1;
-    welfare = Math.round(total * welfareRate);
-    operations = Math.round(total * operationsRate);
-    payout = total - welfare - operations;
-  }
-  return { total, payout, welfare, operations, floor, welfareRate, operationsRate };
-}
-
-function memberWorkload(memberId) {
-  const member = memberById(memberId);
-  if (!member) return 0;
-  const cutoff = Date.now() - 7 * DAY;
-  const history = (member.jobHistory || []).filter((time) => Number(time) >= cutoff).length;
-  const assigned = state.bookings.filter((booking) => booking.memberId === memberId
-    && Number(booking.createdAt) >= cutoff
-    && ['Offer sent', 'Confirmed', 'In progress', 'Completed', 'Settled'].includes(booking.status)).length;
-  return history + assigned;
-}
-
-function hasScheduleConflict(memberId, date, time) {
-  return state.bookings.some((booking) => booking.memberId === memberId
-    && booking.date === date && booking.time === time
-    && ['Offer sent', 'Confirmed', 'In progress'].includes(booking.status));
-}
-
-function allocateMember(serviceKey, area, date, time, excluded = []) {
-  const service = serviceCatalog[serviceKey];
-  const excludedSet = new Set(excluded);
-  const candidates = state.members
-    .filter((member) => member.verified && member.available && member.skill === serviceKey
-      && member.serviceAreas.includes(area) && !excludedSet.has(member.id)
-      && !hasScheduleConflict(member.id, date, time))
-    .map((member) => ({ member, workload: memberWorkload(member.id), distance: Number(member.distances?.[area] ?? 99) }))
-    .sort((a, b) => a.workload - b.workload
-      || Number(a.member.lastAssignedAt || 0) - Number(b.member.lastAssignedAt || 0)
-      || a.distance - b.distance
-      || a.member.name.localeCompare(b.member.name));
-  return candidates;
-}
-
+function initials(name = '') { return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'S'; }
+function money(value) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value) || 0); }
+function dateLabel(value) { if (!value) return 'Not scheduled'; return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function dateInputMin() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
+function serviceIcon(slug) { return ({ electrician: 'ϟ', plumber: '≈', carpenter: '⌁', 'care-worker': '♡' })[slug] || '✳'; }
+function statusLabel(status) { return ({ offered: 'Offer sent', confirmed: 'Confirmed', in_progress: 'In progress', completed: 'Completed', settled: 'Settled', pending: 'Needs a match', cancelled: 'Cancelled' })[status] || status; }
+function serviceName(slug) { return state.services.find((service) => service.slug === slug)?.name || slug; }
 function showToast(message) {
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+  const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3300);
 }
-
-function openDialog(title, html) {
-  dialogTitle.textContent = title;
-  dialogContent.innerHTML = html;
-  if (!dialog.open) dialog.showModal();
-}
-
-function closeDialog() {
-  if (dialog.open) dialog.close();
-  activeDraft = null;
-}
-
-function openService(serviceKey) {
-  if (!serviceCatalog[serviceKey]) return;
-  activeDraft = { serviceKey };
-  const service = serviceCatalog[serviceKey];
-  const rule = state.settings.rules[serviceKey];
-  const quote = quoteFor(serviceKey);
-  openDialog('Request a service', `
-    <form class="dialog-body" id="requestForm">
-      <div class="selected-service"><span class="service-icon ${service.tone}">${service.icon}</span><span><strong>${service.label}</strong><small>Verified cooperative members · estimate from ${money(rule.basePrice)}</small></span><span class="selected-price">${money(quote.total)}</span></div>
-      <div class="field-grid">
-        <div class="field full"><label for="serviceAddress">SERVICE ADDRESS</label><input id="serviceAddress" name="address" value="${esc(serviceAreas[0])}, Bengaluru" maxlength="120" required /></div>
-        <div class="field"><label for="serviceArea">SERVICE AREA</label><select id="serviceArea" name="area" required>${serviceAreas.map((area) => `<option value="${area}">${area}</option>`).join('')}</select></div>
-        <div class="field"><label for="serviceDate">PREFERRED DATE</label><input id="serviceDate" name="date" type="date" min="${tomorrowISO()}" value="${tomorrowISO()}" required /></div>
-        <div class="field full"><label for="serviceTime">TIME WINDOW</label><select id="serviceTime" name="time"><option>Morning · 9 am–12 pm</option><option>Afternoon · 12 pm–4 pm</option><option>Evening · 4 pm–7 pm</option></select></div>
-        <div class="field full"><label for="serviceNote">WHAT NEEDS ATTENTION? <span>(OPTIONAL)</span></label><textarea id="serviceNote" name="note" maxlength="500" placeholder="Add a short note for the member"></textarea></div>
-      </div>
-      <div class="policy-note"><span>⇄</span><div>Verified skill, service area and availability are checked first. Among eligible members, fewer jobs in the last seven days receives priority. The quote enforces the member wage floor.</div></div>
-      <div class="form-actions"><small>Sample profiles · simulated booking</small><button class="button button-primary" type="submit">Find a member <span>→</span></button></div>
-    </form>`);
-  document.querySelector('#requestForm').addEventListener('submit', findMember);
-}
-
-function findMember(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const details = {
-    address: String(form.get('address') || '').trim(),
-    area: String(form.get('area') || ''),
-    date: String(form.get('date') || ''),
-    time: String(form.get('time') || ''),
-    note: String(form.get('note') || '').trim(),
-  };
-  const candidates = allocateMember(activeDraft.serviceKey, details.area, details.date, details.time);
-  if (!candidates.length) {
-    openDialog('No eligible member is available', `
-      <div class="dialog-body no-match"><div class="empty-icon">⌕</div><h3>We could not find a matching member for this time.</h3><p>The federation can review the request, or you can try another area or time window. No unverified worker will be substituted.</p><button class="button button-primary" id="backToRequest">Change request details</button></div>`);
-    document.querySelector('#backToRequest').addEventListener('click', () => openService(activeDraft.serviceKey));
-    return;
+async function api(path, options = {}) {
+  const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) } });
+  const result = response.status === 204 ? {} : await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401 && state.user) { state.user = null; renderAuth(); }
+    throw new Error(result.error || 'The request could not be completed.');
   }
-  activeDraft = { ...activeDraft, ...details, memberId: candidates[0].member.id, candidates: candidates.map((item) => ({ id: item.member.id, workload: item.workload, distance: item.distance })), quote: quoteFor(activeDraft.serviceKey) };
-  showMatch();
+  return result;
+}
+function jsonBody(value) { return JSON.stringify(value); }
+
+function renderAuth() {
+  authScreen.hidden = false; appShell.hidden = true;
+  $$('.auth-tab').forEach((button) => button.classList.toggle('active', button.dataset.authMode === state.authMode));
+  const host = $('#authFormHost');
+  if (state.authMode === 'login') {
+    host.innerHTML = `<h2>Welcome back</h2><p class="auth-intro">Sign in to manage your cooperative services.</p>
+      <form id="loginForm" class="form-stack"><div class="field"><label for="loginEmail">EMAIL ADDRESS</label><input id="loginEmail" name="email" type="email" autocomplete="username" required placeholder="you@example.com" /></div>
+      <div class="field"><label for="loginPassword">PASSWORD</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" required placeholder="Your password" /></div>
+      <button class="button button-primary button-block" type="submit">Sign in <span>→</span></button></form>
+      <p class="form-hint">Federation admins: use the credentials shown when the server starts.</p>`;
+  } else {
+    host.innerHTML = `<h2>Join the network</h2><p class="auth-intro">Create a customer account or register as a cooperative worker.</p>
+      <form id="registerForm" class="form-stack"><div class="field"><label for="registerName">FULL NAME</label><input id="registerName" name="name" autocomplete="name" maxlength="80" required placeholder="Your name" /></div>
+      <div class="field"><label for="registerEmail">EMAIL ADDRESS</label><input id="registerEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com" /></div>
+      <div class="field"><label for="registerPassword">PASSWORD <span class="muted">(10+ characters)</span></label><input id="registerPassword" name="password" type="password" minlength="10" autocomplete="new-password" required placeholder="Create a password" /></div>
+      <div class="field"><label for="registerRole">ACCOUNT TYPE</label><select id="registerRole" name="role"><option value="customer">Customer</option><option value="worker">Cooperative worker</option></select></div>
+      <div id="workerFields" class="form-stack" hidden><div class="field"><label for="registerSkill">YOUR SERVICE SKILL</label><select id="registerSkill" name="skill">${[['Electrician','Electrical repair'],['Plumber','Plumbing'],['Carpenter','Carpentry'],['Care worker','Care support']].map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select></div>
+      <div class="field"><label>SERVICE AREAS</label><div class="check-grid">${state.areas.map((area) => `<label class="check-chip"><input type="checkbox" name="areas" value="${escapeHtml(area)}" /> ${escapeHtml(area)}</label>`).join('')}</div></div>
+      <div class="field"><label for="registerCoop">CO-OPERATIVE</label><input id="registerCoop" name="cooperative" maxlength="100" placeholder="Your co-operative name" /></div>
+      <div class="field"><label for="registerCertificate">SKILL CERTIFICATE <span class="muted">(OPTIONAL)</span></label><input id="registerCertificate" name="certificate" maxlength="100" placeholder="Qualification or experience" /></div></div>
+      <button class="button button-primary button-block" type="submit">Create account <span>→</span></button></form>
+      <p class="form-hint">New worker accounts are reviewed by the federation before they can receive jobs.</p>`;
+    $('#registerRole').addEventListener('change', (event) => { $('#workerFields').hidden = event.target.value !== 'worker'; });
+  }
 }
 
-function showMatch() {
-  const { serviceKey, memberId, candidates, quote } = activeDraft;
-  const service = serviceCatalog[serviceKey];
-  const member = memberById(memberId);
-  const first = candidates[0];
-  const next = candidates[1];
-  const reason = `${member.name.split(' ')[0]} has ${first.workload} recent jobs. ${next ? `${memberById(next.id)?.name.split(' ')[0]} has ${next.workload}; ` : ''}workload is prioritized before distance.`;
-  openDialog('A fair match, nearby', `
-    <div class="result-body">
-      <div class="match-banner"><div class="worker-avatar">${esc(member.initials)}</div><div><span class="match-status">VERIFIED CO-OP MEMBER · AVAILABLE</span><strong>${esc(member.name)}</strong><small>${esc(member.cooperative)} · ${first.distance.toFixed(1)} km away</small></div><span class="match-rating">★ ${Number(member.rating).toFixed(1)}</span></div>
-      <p class="match-reason"><strong>Why this match?</strong> ${esc(reason)} Ratings are visible for trust, but do not determine who receives work.</p>
-      <div class="result-label">REQUEST DETAILS</div><div class="payment-box"><div class="payment-row"><span>${esc(service.label)}</span><strong>${dayLabel(activeDraft.date)}</strong></div><div class="payment-row"><span>${esc(activeDraft.time)}</span><strong>${esc(activeDraft.address)}</strong></div>${activeDraft.note ? `<div class="payment-row"><span>Task note</span><strong>${esc(activeDraft.note)}</strong></div>` : ''}</div>
-      <div class="result-label">CLEAR PAYMENT SPLIT</div><div class="payment-box"><div class="payment-row"><span>Member payout</span><strong>${money(quote.payout)}</strong></div><div class="payment-row"><span>Member welfare fund</span><strong>${money(quote.welfare)}</strong></div><div class="payment-row"><span>Co-operative operations</span><strong>${money(quote.operations)}</strong></div><div class="payment-row total"><span>Total estimate</span><strong>${money(quote.total)}</strong></div><div class="floor-callout"><span>Guaranteed member wage floor</span><strong>${money(quote.floor)} minimum</strong></div></div>
-      <div class="result-footer"><small>Sample member and policy data. Payment is simulated after job completion.</small><button class="button button-primary" id="confirmBooking">Confirm request <span>→</span></button></div>
-    </div>`);
-  document.querySelector('#confirmBooking').addEventListener('click', confirmBooking);
+function navItems() {
+  if (state.user.role === 'customer') return [['overview','⌂','Overview'],['requests','▤','My requests']];
+  if (state.user.role === 'worker') return [['tasks','⌘','My work'],['earnings','₹','Earnings & ledger']];
+  return [['overview','⌂','Overview'],['workers','♙','Worker roster'],['bookings','▤','All bookings'],['policy','⚙','Rates & policy']];
+}
+function navigate(view) {
+  state.view = view;
+  $$('.nav-item').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
+  renderView();
+}
+async function loadWorkspace(view) {
+  const payload = await api('/api/bootstrap');
+  const initialView = payload.user.role === 'worker' ? 'tasks' : 'overview';
+  Object.assign(state, payload, { view: view || initialView });
+  state.user = payload.user;
+  renderWorkspace();
+}
+function renderWorkspace() {
+  authScreen.hidden = true; appShell.hidden = false;
+  const user = state.user;
+  const role = user.role === 'admin' ? 'Federation' : user.role === 'worker' ? 'Worker member' : 'Customer account';
+  $('#sideAvatar').textContent = initials(user.name); $('#topAvatar').textContent = initials(user.name);
+  $('#sideName').textContent = user.name; $('#sideRole').textContent = role; $('#topName').textContent = user.name;
+  $('#mainNav').innerHTML = navItems().map(([view, icon, label]) => `<button class="nav-item ${state.view === view ? 'active' : ''}" data-view="${view}" type="button"><span class="nav-symbol">${icon}</span>${label}</button>`).join('');
+  renderView();
+}
+function renderView() {
+  if (!state.user) return;
+  const titleMap = { overview: 'Overview', requests: 'My requests', tasks: 'My work', earnings: 'Earnings & ledger', workers: 'Worker roster', bookings: 'All bookings', policy: 'Rates & policy' };
+  $('#pageTitle').textContent = titleMap[state.view] || 'Overview';
+  $('#crumbLabel').textContent = state.user.role === 'admin' ? 'FEDERATION CONSOLE' : state.user.role === 'worker' ? 'WORKER WORKSPACE' : 'CUSTOMER WORKSPACE';
+  if (state.user.role === 'customer') content.innerHTML = state.view === 'requests' ? renderCustomerRequests() : renderCustomerHome();
+  else if (state.user.role === 'worker') content.innerHTML = state.view === 'earnings' ? renderWorkerEarnings() : renderWorkerTasks();
+  else content.innerHTML = ({ workers: renderAdminWorkers, bookings: renderAdminBookings, policy: renderAdminPolicy })[state.view]?.() || renderAdminOverview();
 }
 
-function confirmBooking() {
-  const id = `SH-${String(state.nextBookingNumber++).padStart(4, '0')}`;
-  const member = memberById(activeDraft.memberId);
-  const booking = {
-    id,
-    service: activeDraft.serviceKey,
-    customerName: 'Riya Sharma',
-    address: activeDraft.address,
-    area: activeDraft.area,
-    date: activeDraft.date,
-    time: activeDraft.time,
-    note: activeDraft.note,
-    memberId: member.id,
-    assignedMemberIds: [member.id],
-    assignmentReason: `Lowest eligible recent workload (${memberWorkload(member.id)} jobs); distance used as a later tie-breaker.`,
-    quote: activeDraft.quote,
-    status: 'Offer sent',
-    createdAt: Date.now(),
-    feedback: null,
-    paymentMethod: null,
-    paidAt: null,
-  };
-  state.bookings.unshift(booking);
-  member.lastAssignedAt = Date.now();
-  persist();
-  renderAll();
-  dialogTitle.textContent = 'Request sent to the co-op';
-  dialogContent.innerHTML = `<div class="success-panel"><div class="success-check">✓</div><h3>Your request is on its way.</h3><p>${esc(member.name.split(' ')[0])} has received request ${esc(id)}. Switch to the Worker workspace to accept it and continue the demo.</p><div class="success-details"><span><small>REQUEST</small><strong>${esc(id)}</strong></span><span><small>DATE</small><strong>${dayLabel(booking.date)}</strong></span><span><small>ESTIMATE</small><strong>${money(booking.quote.total)}</strong></span></div><br /><button class="button button-primary" id="doneBooking">Back to overview</button></div>`;
-  document.querySelector('#doneBooking').addEventListener('click', () => closeDialog());
-  showToast(`Request ${id} saved on this device.`);
+function renderCustomerHome() {
+  const active = state.bookings.filter((booking) => !['settled','cancelled'].includes(booking.status)).length;
+  const settled = state.bookings.filter((booking) => booking.status === 'settled').length;
+  return `<div class="welcome-row"><div><p class="eyebrow">YOUR LOCAL SERVICE NETWORK</p><h1>Good help, close to home.</h1><p>Book a trusted local worker with clear pricing and cooperative accountability.</p></div><div class="welcome-date">${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})}</div></div>
+    <section class="hero-card"><div class="hero-copy"><p class="eyebrow">A CO-OPERATIVE WAY TO GET THINGS DONE</p><h1>Local skills.<br />Fair work.</h1><p>Find verified workers in your service area. Review the member payout and welfare share before confirming a request.</p></div><div class="hero-side" aria-hidden="true">✳</div></section>
+    <div class="metric-grid"><div class="metric-card"><small>ACTIVE REQUESTS</small><strong>${active}</strong></div><div class="metric-card"><small>COMPLETED JOBS</small><strong>${settled}</strong></div><div class="metric-card"><small>LOCAL SERVICE AREAS</small><strong>${state.areas.length}</strong></div><div class="metric-card"><small>WORKER-FIRST MATCH</small><strong>On</strong></div></div>
+    <div class="section-title"><div><h2>Book a service</h2><p>Choose a service to see availability and an itemized estimate.</p></div></div>
+    <div class="service-grid">${state.services.map((service) => `<article class="service-card"><span class="service-icon ${service.slug}">${serviceIcon(service.slug)}</span><h3>${escapeHtml(service.name)}</h3><p>${escapeHtml(service.description)}</p><div class="service-bottom"><span>From <strong>${money(service.base_price)}</strong></span><button class="text-button" data-action="book-service" data-service="${escapeHtml(service.slug)}">Request service →</button></div></article>`).join('')}</div>
+    <div class="section-title"><div><h2>Request details</h2><p>Your estimate respects the configured worker wage floor.</p></div></div>
+    <section class="panel"><form id="bookingForm" class="book-form"><div class="field"><label for="bookService">SERVICE</label><select id="bookService" name="service" required>${state.services.map((service) => `<option value="${escapeHtml(service.slug)}">${escapeHtml(service.name)} · from ${money(service.base_price)}</option>`).join('')}</select></div><div class="field"><label for="bookArea">SERVICE AREA</label><select id="bookArea" name="area" required>${state.areas.map((area) => `<option>${escapeHtml(area)}</option>`).join('')}</select></div><div class="field"><label for="bookAddress">SERVICE ADDRESS</label><input id="bookAddress" name="address" required maxlength="160" placeholder="Street, apartment or landmark" /></div><div class="field"><label for="bookDate">PREFERRED DATE</label><input id="bookDate" name="date" type="date" min="${dateInputMin()}" value="${dateInputMin()}" required /></div><div class="field"><label for="bookTime">TIME WINDOW</label><select id="bookTime" name="time"><option>Morning · 9 am–12 pm</option><option>Afternoon · 12 pm–4 pm</option><option>Evening · 4 pm–7 pm</option></select></div><div class="field"><label for="bookNote">TASK NOTES</label><input id="bookNote" name="note" maxlength="500" placeholder="Briefly describe what you need" /></div><div class="policy-callout wide"><span>⇄</span><span><b>Fair matching:</b> eligibility is checked by skill, verification, availability and area. Among eligible workers, fewer recent jobs gets priority. The full price split is shown before the request is sent.</span></div><div class="wide"><button class="button button-primary" type="submit">Find an eligible worker <span>→</span></button></div></form></section>
+    <div class="section-title"><div><h2>Recent requests</h2><p>Track your bookings and take the next action when a job is complete.</p></div><button class="small-button" data-action="navigate" data-view="requests">View all</button></div>
+    <div class="booking-list">${state.bookings.slice(0,3).map((booking) => bookingCard(booking,'customer')).join('') || emptyState('No requests yet','Your bookings will appear here after you create one.')}</div>`;
+}
+function renderCustomerRequests() { return `<div class="welcome-row"><div><p class="eyebrow">YOUR ACTIVITY</p><h1>My requests</h1><p>Every request, status update and settlement in one place.</p></div></div><div class="booking-list">${state.bookings.map((booking) => bookingCard(booking,'customer')).join('') || emptyState('Nothing here yet','Go to Overview to request your first service.')}</div>`; }
+function emptyState(title, message) { return `<div class="panel empty-state"><strong>${escapeHtml(title)}</strong>${escapeHtml(message)}</div>`; }
+
+function renderWorkerTasks() {
+  const worker = state.worker || {};
+  const offered = state.bookings.filter((booking) => booking.status === 'offered').length;
+  const active = state.bookings.filter((booking) => ['confirmed','in_progress'].includes(booking.status)).length;
+  return `<div class="welcome-row"><div><p class="eyebrow">WORKER WORKSPACE</p><h1>Your work, on your terms.</h1><p>Review requests and update each job as you complete it.</p></div></div>
+    <section class="worker-profile"><span class="member-avatar">${initials(state.user.name)}</span><div><h3>${escapeHtml(state.user.name)}</h3><p>${escapeHtml(worker.skill || 'Worker member')} · ${escapeHtml(worker.cooperative || 'Co-operative member')} · ${worker.verified ? 'Federation verified' : 'Awaiting federation verification'}</p><p>Areas: ${(worker.service_areas || []).map(escapeHtml).join(', ') || 'Not set'}</p></div><div class="grow"></div><div><small class="muted">AVAILABLE FOR WORK</small><br /><button class="switch ${worker.available ? 'on' : ''}" data-action="availability" aria-label="Toggle availability" aria-pressed="${worker.available}" type="button"></button></div></section>
+    ${!worker.verified ? `<div class="policy-callout" style="margin-top:14px"><b>Profile under review.</b> The federation must verify your account before you can receive service requests.</div>` : ''}
+    <div class="metric-grid"><div class="metric-card"><small>NEW OFFERS</small><strong>${offered}</strong></div><div class="metric-card"><small>ACTIVE JOBS</small><strong>${active}</strong></div><div class="metric-card"><small>RECENT WORKLOAD</small><strong>${worker.recent_jobs || 0}</strong></div><div class="metric-card"><small>MEMBER RATING</small><strong>${Number(worker.rating || 0).toFixed(1)} <span class="muted small">★</span></strong></div></div>
+    <div class="section-title"><div><h2>Requests and jobs</h2><p>Accept or decline a new offer. Confirmed jobs can be started and completed here.</p></div></div><div class="booking-list">${state.bookings.map((booking) => bookingCard(booking,'worker')).join('') || emptyState('No requests yet','New service offers will appear here.')}</div>`;
+}
+function renderWorkerEarnings() {
+  const payout = state.ledger.filter((entry) => entry.entry_type === 'Member payout').reduce((sum, entry) => sum + entry.amount, 0);
+  const welfare = state.ledger.filter((entry) => entry.entry_type === 'Welfare contribution').reduce((sum, entry) => sum + entry.amount, 0);
+  return `<div class="welcome-row"><div><p class="eyebrow">TRANSPARENT SETTLEMENT</p><h1>Earnings & ledger</h1><p>Settled job payouts and welfare contributions recorded against your work.</p></div></div><div class="metric-grid"><div class="metric-card"><small>MEMBER PAYOUTS</small><strong>${money(payout)}</strong></div><div class="metric-card"><small>WELFARE CONTRIBUTIONS</small><strong>${money(welfare)}</strong></div><div class="metric-card"><small>SETTLED JOBS</small><strong>${state.bookings.filter((booking) => booking.status === 'settled').length}</strong></div><div class="metric-card"><small>ACTIVE JOBS</small><strong>${state.bookings.filter((booking) => ['confirmed','in_progress'].includes(booking.status)).length}</strong></div></div><section class="panel"><div class="panel-head"><div><h3>Member ledger</h3><p>Entries are created when a customer settles a completed service.</p></div></div>${state.ledger.map((entry) => `<div class="ledger-line"><span><strong>${escapeHtml(entry.entry_type)}</strong><small>${escapeHtml(entry.booking_id)} · ${new Date(entry.created_at*1000).toLocaleString('en-IN')}</small></span><strong>${money(entry.amount)}</strong></div>`).join('') || emptyState('No ledger entries yet','Your settlement history will appear here.')}</section>`;
 }
 
-function statusClass(status) {
-  return `status-${String(status).toLowerCase().replace(/[^a-z]+/g, '-')}`;
+function renderAdminOverview() {
+  const metrics = state.metrics || {};
+  const pending = state.workers.filter((worker) => !worker.verified).length;
+  const pendingBookings = state.bookings.filter((booking) => booking.status === 'pending').length;
+  return `<div class="welcome-row"><div><p class="eyebrow">FEDERATION CONSOLE</p><h1>Keep the network fair.</h1><p>Review worker profiles, service demand, and the policy behind each price.</p></div></div><div class="metric-grid"><div class="metric-card"><small>REGISTERED WORKERS</small><strong>${metrics.workers || 0}</strong></div><div class="metric-card"><small>VERIFIED MEMBERS</small><strong>${metrics.verified || 0}</strong></div><div class="metric-card"><small>TOTAL BOOKINGS</small><strong>${metrics.bookings || 0}</strong></div><div class="metric-card"><small>WELFARE FUND RECORDED</small><strong>${money(metrics.welfare || 0)}</strong></div></div>
+    <div class="two-col"><section class="panel"><div class="panel-head"><div><h3>Worker verification queue</h3><p>Workers can receive offers only after verification.</p></div><button class="small-button" data-action="navigate" data-view="workers">Manage roster</button></div>${state.workers.filter((worker) => !worker.verified).slice(0,4).map((worker) => `<div class="member-card"><span class="member-avatar">${initials(worker.name)}</span><span><strong>${escapeHtml(worker.name)}</strong><small>${escapeHtml(worker.skill)} · ${escapeHtml(worker.email)}</small></span><button class="small-button primary" data-action="verify-worker" data-id="${worker.id}">Verify</button></div>`).join('') || '<div class="empty-state">No profiles are waiting for review.</div>'}</section>
+    <section class="panel"><div class="panel-head"><div><h3>Needs a worker match</h3><p>Assign a verified, available member when a request has no match.</p></div><button class="small-button" data-action="navigate" data-view="bookings">View bookings</button></div>${pendingBookings ? `<p class="pending-callout">${pendingBookings} booking${pendingBookings===1?'':'s'} waiting for a match.</p>` : '<div class="empty-state">All bookings have a worker or are completed.</div>'}</section></div>`;
+}
+function renderAdminWorkers() {
+  return `<div class="welcome-row"><div><p class="eyebrow">MEMBER MANAGEMENT</p><h1>Worker roster</h1><p>Verify profiles and manage availability in the cooperative network.</p></div><button class="button button-primary" data-action="add-worker">+ Add worker</button></div><section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>WORKER</th><th>SKILL</th><th>AREAS</th><th>RECENT JOBS</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>${state.workers.map((worker) => `<tr><td><strong>${escapeHtml(worker.name)}</strong><br /><span class="muted small">${escapeHtml(worker.email)} · ${escapeHtml(worker.cooperative)}</span></td><td>${escapeHtml(worker.skill)}<br /><span class="muted small">${escapeHtml(worker.certificate || 'No certificate added')}</span></td><td>${worker.service_areas.map(escapeHtml).join(', ')}</td><td>${worker.recent_jobs}</td><td><span class="badge ${worker.verified?'':'pending'}">${worker.verified?'Verified':'Pending review'}</span> <span class="badge ${worker.available?'':'cancelled'}">${worker.available?'Available':'Paused'}</span></td><td><div class="button-row"><button class="small-button ${worker.verified?'':'primary'}" data-action="verify-worker" data-id="${worker.id}">${worker.verified?'Unverify':'Verify'}</button><button class="small-button" data-action="pause-worker" data-id="${worker.id}">${worker.available?'Pause':'Activate'}</button><button class="small-button danger" data-action="remove-worker" data-id="${worker.id}">Remove</button></div></td></tr>`).join('') || `<tr><td colspan="6">${emptyState('No workers yet','Workers can create accounts from the sign-in page, or the federation can add profiles.')}</td></tr>`}</tbody></table></div></section>`;
+}
+function renderAdminBookings() {
+  return `<div class="welcome-row"><div><p class="eyebrow">NETWORK ACTIVITY</p><h1>All bookings</h1><p>Review status, assignment, and clear payment splits across the network.</p></div></div><div class="booking-list">${state.bookings.map((booking) => bookingCard(booking,'admin')).join('') || emptyState('No bookings yet','Customer service requests will appear here.')}</div>`;
+}
+function renderAdminPolicy() {
+  const settings = state.settings || { welfare_rate: .07, operations_rate: .05 };
+  return `<div class="welcome-row"><div><p class="eyebrow">CO-OPERATIVE POLICY</p><h1>Rates & wage floors</h1><p>New quotes use these values. Existing bookings keep the price split they were given.</p></div></div><section class="panel"><form id="policyForm"><div class="field-grid"><div class="field"><label for="welfareRate">WELFARE FUND (%)</label><input id="welfareRate" name="welfare" type="number" min="0" max="49" step="0.1" value="${Number(settings.welfare_rate)*100}" required /></div><div class="field"><label for="operationsRate">CO-OP OPERATIONS (%)</label><input id="operationsRate" name="operations" type="number" min="0" max="49" step="0.1" value="${Number(settings.operations_rate)*100}" required /></div></div><div class="section-title"><div><h2>Service pricing</h2><p>Member payout must meet the configured wage floor.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>SERVICE</th><th>BASE PRICE (₹)</th><th>MEMBER WAGE FLOOR (₹)</th></tr></thead><tbody>${state.services.map((service) => `<tr><td><strong>${escapeHtml(service.name)}</strong><br /><span class="muted small">${escapeHtml(service.skill)}</span></td><td><input class="price-input" type="number" name="base-${service.slug}" min="1" value="${service.base_price}" required /></td><td><input class="price-input" type="number" name="floor-${service.slug}" min="1" value="${service.wage_floor}" required /></td></tr>`).join('')}</tbody></table></div><div class="button-row" style="margin-top:17px"><button class="button button-primary" type="submit">Save policy</button><span class="muted small">Combined contributions must stay below 50%.</span></div></form></section>`;
 }
 
-function renderCustomerRequests() {
-  const empty = document.querySelector('#emptyState');
-  const list = document.querySelector('#requestList');
-  document.querySelector('#requestCount').textContent = `${state.bookings.length} ${state.bookings.length === 1 ? 'request' : 'requests'}`;
-  empty.hidden = state.bookings.length > 0;
-  list.innerHTML = [...state.bookings].sort((a, b) => b.createdAt - a.createdAt).map((booking) => {
-    const service = serviceCatalog[booking.service];
-    const member = booking.memberId ? memberById(booking.memberId) : null;
-    let actions = '';
-    if (booking.status === 'Offer sent' || booking.status === 'Confirmed') actions = `<button class="small-action" data-booking-action="cancel" data-id="${esc(booking.id)}">Cancel request</button>`;
-    if (booking.status === 'Completed') actions = `<button class="small-action primary-action" data-booking-action="pay" data-id="${esc(booking.id)}">Pay & settle</button>`;
-    if (booking.status === 'Settled') actions = `<button class="small-action" data-booking-action="invoice" data-id="${esc(booking.id)}">Invoice</button>${booking.feedback ? '<span class="feedback-saved">Feedback saved</span>' : `<button class="small-action" data-booking-action="feedback" data-id="${esc(booking.id)}">Leave feedback</button>`}`;
-    if (booking.status === 'Needs review') actions = `<button class="small-action" data-booking-action="retry" data-id="${esc(booking.id)}">Try another member</button>`;
-    return `<article class="request-item"><span class="service-icon ${service.tone}">${service.icon}</span><div class="request-summary"><strong>${esc(service.label)} · ${dayLabel(booking.date)}</strong><small>${member ? `${esc(member.name)} · ${esc(member.cooperative)}` : 'Waiting for federation review'} · ${esc(booking.area)}</small><small>${esc(booking.time)}</small></div><span class="request-status ${statusClass(booking.status)}">${esc(booking.status)}</span><span class="request-price">${money(booking.quote.total)}</span><div class="request-actions">${actions}</div></article>`;
-  }).join('');
-}
-
-function renderWorkloadChart() {
-  const container = document.querySelector('#workloadChart');
-  const members = state.members.filter((member) => member.skill === 'Electrician' && member.verified).sort((a, b) => memberWorkload(a.id) - memberWorkload(b.id));
-  const max = Math.max(1, ...members.map((member) => memberWorkload(member.id)));
-  container.innerHTML = `<div class="chart-label"><span>Recent jobs across verified electricians</span><span>Last 7 days</span></div>${members.map((member) => `<div class="chart-row"><span class="chart-name">${esc(member.name.split(' ')[0])}</span><div class="bar-track"><i class="bar ${member.id === members[0]?.id ? 'green' : 'blue'}" style="width:${Math.max(8, Math.round(memberWorkload(member.id) / max * 100))}%"></i></div><span class="chart-count">${memberWorkload(member.id)}</span></div>`).join('')}`;
-}
-
-function renderMetrics() {
-  document.querySelector('#memberMetric').textContent = `${state.members.filter((member) => member.verified).length} verified`;
-  const funded = state.ledger.reduce((sum, entry) => sum + Number(entry.welfare || 0), 0);
-  document.querySelector('#welfareMetric').textContent = money(funded);
-}
-
-function renderCustomer() {
-  renderCustomerRequests();
-  renderWorkloadChart();
-  renderMetrics();
-}
-
-function bookingCard(booking, mode = 'worker') {
-  const service = serviceCatalog[booking.service];
-  const assigned = memberById(booking.memberId);
-  const member = mode === 'worker' ? null : assigned;
+function bookingCard(booking, role) {
+  const worker = booking.worker;
+  const customer = booking.customer;
   let actions = '';
-  if (mode === 'worker') {
-    if (booking.status === 'Offer sent') actions = `<button class="small-action primary-action" data-role-action="accept-offer" data-id="${esc(booking.id)}">Accept offer</button><button class="small-action" data-role-action="decline-offer" data-id="${esc(booking.id)}">Decline</button>`;
-    if (booking.status === 'Confirmed') actions = `<button class="small-action primary-action" data-role-action="start-job" data-id="${esc(booking.id)}">Start job</button>`;
-    if (booking.status === 'In progress') actions = `<button class="small-action primary-action" data-role-action="complete-job" data-id="${esc(booking.id)}">Mark complete</button>`;
-    if (booking.status === 'Completed') actions = '<span class="action-hint">Waiting for customer payment</span>';
-    if (booking.status === 'Settled') actions = `<button class="small-action" data-role-action="invoice" data-id="${esc(booking.id)}">View invoice</button>`;
-  } else if (mode === 'admin') {
-    actions = `<button class="small-action" data-role-action="invoice" data-id="${esc(booking.id)}">View</button>`;
+  if (role === 'customer') {
+    if (['offered','pending','confirmed'].includes(booking.status)) actions += `<button class="small-button danger" data-action="booking-cancel" data-id="${booking.id}">Cancel request</button>`;
+    if (booking.status === 'completed') actions += `<button class="small-button primary" data-action="booking-settle" data-id="${booking.id}">Settle demo payment</button>`;
+    if (booking.status === 'settled') actions += `<button class="small-button" data-action="invoice" data-id="${booking.id}">Invoice</button>${booking.rating ? `<span class="muted small">Rated ${booking.rating} ★</span>` : `<button class="small-button" data-action="review" data-id="${booking.id}">Leave review</button>`}`;
   }
-  const subtitle = mode === 'worker'
-    ? `${esc(booking.area)} · ${dayLabel(booking.date)} · ${esc(booking.time)}`
-    : `${member ? esc(member.name) : 'No member assigned'} · ${esc(booking.area)} · ${dayLabel(booking.date)}`;
-  return `<article class="work-card"><span class="service-icon ${service.tone}">${service.icon}</span><div class="work-card-main"><div class="work-card-title"><strong>${esc(service.label)}</strong><span class="request-status ${statusClass(booking.status)}">${esc(booking.status)}</span></div><small>${subtitle}</small><small>${esc(booking.address)}</small>${booking.note ? `<small class="task-note">Task: ${esc(booking.note)}</small>` : ''}</div><div class="work-card-value"><strong>${money(booking.quote.payout)}</strong><small>member payout</small></div><div class="work-card-actions">${actions}</div></article>`;
-}
-
-function renderWorker() {
-  const choices = state.members.map((member) => `<option value="${esc(member.id)}" ${member.id === state.currentMemberId ? 'selected' : ''}>${esc(member.name)} · ${esc(member.skill)}</option>`).join('');
-  let member = memberById(state.currentMemberId);
-  if (!member && state.members.length) {
-    state.currentMemberId = state.members[0].id;
-    member = state.members[0];
+  if (role === 'worker') {
+    if (booking.status === 'offered') actions += `<button class="small-button primary" data-action="booking-accept" data-id="${booking.id}">Accept</button><button class="small-button" data-action="booking-decline" data-id="${booking.id}">Decline</button>`;
+    if (booking.status === 'confirmed') actions += `<button class="small-button primary" data-action="booking-start" data-id="${booking.id}">Start job</button>`;
+    if (booking.status === 'in_progress') actions += `<button class="small-button primary" data-action="booking-complete" data-id="${booking.id}">Mark complete</button>`;
+    if (booking.status === 'settled') actions += `<button class="small-button" data-action="invoice" data-id="${booking.id}">Invoice</button>`;
   }
-  if (!member) {
-    roleView.innerHTML = `<section class="role-panel"><h1>No worker profiles</h1><p>Add a member in the Federation workspace.</p></section>`;
-    return;
+  if (role === 'admin' && booking.status === 'pending') {
+    const candidates = state.workers.filter((item) => item.verified && item.available && item.skill === booking.skill && item.service_areas.includes(booking.area));
+    actions += candidates.length ? `<select class="assign-select" id="assign-${booking.id}">${candidates.map((item) => `<option value="${item.id}">${escapeHtml(item.name)} · ${item.recent_jobs} recent jobs</option>`).join('')}</select><button class="small-button primary" data-action="assign-booking" data-id="${booking.id}">Assign</button>` : '<span class="muted small">No eligible worker yet</span>';
   }
-  const ownBookings = state.bookings.filter((booking) => booking.memberId === member.id && booking.status !== 'Cancelled').sort((a, b) => b.createdAt - a.createdAt);
-  const openOffers = ownBookings.filter((booking) => booking.status === 'Offer sent');
-  const activeJobs = ownBookings.filter((booking) => ['Confirmed', 'In progress'].includes(booking.status));
-  const settled = state.ledger.filter((entry) => entry.memberId === member.id);
-  const earnings = settled.reduce((sum, entry) => sum + Number(entry.payout || 0), 0);
-  const welfare = settled.reduce((sum, entry) => sum + Number(entry.welfare || 0), 0);
-  roleView.innerHTML = `
-    <section class="role-hero worker-hero" id="workerDashboard"><div><span class="eyebrow">CO-OPERATIVE MEMBER WORKSPACE</span><h1>Your skills. Your work. Your ledger.</h1><p>Accept jobs transparently and see how completed work contributes to member earnings and welfare.</p></div><div class="worker-switch"><label for="workerMemberSelect">DEMO MEMBER PROFILE</label><select id="workerMemberSelect">${choices}</select><button class="small-action ${member.available ? '' : 'primary-action'}" data-role-action="toggle-availability">${member.available ? 'Available for work' : 'Set available'}</button></div></section>
-    <section class="role-stats"><article><small>Recent jobs · 7 days</small><strong>${memberWorkload(member.id)}</strong></article><article><small>Open offers</small><strong>${openOffers.length}</strong></article><article><small>Active jobs</small><strong>${activeJobs.length}</strong></article><article><small>Settled earnings</small><strong>${money(earnings)}</strong></article><article><small>Welfare contributions</small><strong>${money(welfare)}</strong></article></section>
-    <section class="role-section" id="workerOffers"><div class="role-section-head"><div><span class="eyebrow">WORK QUEUE</span><h2>Offers and jobs</h2></div><span class="section-count">${ownBookings.length} assigned</span></div>
-      ${ownBookings.length ? `<div class="work-list">${ownBookings.map((booking) => bookingCard(booking, 'worker')).join('')}</div>` : `<div class="empty-role"><strong>No jobs assigned to this member yet.</strong><p>New customer requests appear here as offers.</p></div>`}
-    </section>
-    <section class="role-section" id="workerEarnings"><div class="role-section-head"><div><span class="eyebrow">MEMBER LEDGER</span><h2>How completed work is shared</h2></div></div><div class="ledger-summary"><div><small>Member earnings</small><strong>${money(earnings)}</strong></div><div><small>Welfare fund posted</small><strong>${money(welfare)}</strong></div><div><small>Co-operative operations</small><strong>${money(settled.reduce((sum, entry) => sum + Number(entry.operations || 0), 0))}</strong></div></div><p class="fine-print">Only settled jobs appear here. Example member profiles and policies are stored in this browser.</p></section>`;
+  const otherParty = role === 'admin' ? `${escapeHtml(customer?.name || 'Customer')} → ${escapeHtml(worker?.name || 'Unassigned')}` : role === 'worker' ? `${escapeHtml(customer?.name || 'Customer')} · ${escapeHtml(booking.area)}` : `${escapeHtml(worker?.name || 'Waiting for a worker match')} · ${escapeHtml(booking.area)}`;
+  return `<article class="booking-card"><div class="booking-top"><div><div class="booking-title">${escapeHtml(booking.service)} <span class="booking-id">${escapeHtml(booking.id)}</span></div><div class="booking-meta"><span>${dateLabel(booking.date)} · ${escapeHtml(booking.time)}</span><span>${otherParty}</span><span>${escapeHtml(booking.address)}</span></div>${booking.note ? `<div class="booking-meta"><span>Note: ${escapeHtml(booking.note)}</span></div>` : ''}</div><span class="badge ${booking.status}">${escapeHtml(statusLabel(booking.status))}</span></div><div class="booking-bottom"><div class="quote-split"><span>Total <strong>${money(booking.quote.total)}</strong></span><span>Member <strong>${money(booking.quote.payout)}</strong></span><span>Welfare <strong>${money(booking.quote.welfare)}</strong></span><span>Operations <strong>${money(booking.quote.operations)}</strong></span></div><div class="button-row">${actions}</div></div>${booking.feedback ? `<p class="muted small">Customer review: ${escapeHtml(booking.feedback)} ${booking.rating ? `· ${booking.rating} ★` : ''}</p>` : ''}</article>`;
 }
 
-function renderAdmin() {
-  const verified = state.members.filter((member) => member.verified).length;
-  const open = state.bookings.filter((booking) => ['Offer sent', 'Confirmed', 'In progress', 'Completed', 'Needs review'].includes(booking.status)).length;
-  const totalWelfare = state.ledger.reduce((sum, entry) => sum + Number(entry.welfare || 0), 0);
-  const members = state.members.map((member) => `<tr><td><strong>${esc(member.name)}</strong><small>${esc(member.cooperative)}</small></td><td>${esc(member.skill)}</td><td>${esc(member.certificate || 'Not listed')}</td><td>${memberWorkload(member.id)}</td><td><span class="admin-badge ${member.verified ? 'good' : 'muted'}">${member.verified ? 'Verified' : 'Unverified'}</span></td><td><span class="admin-badge ${member.available ? 'good' : 'muted'}">${member.available ? 'Available' : 'Unavailable'}</span></td><td><div class="inline-actions"><button class="small-action" data-role-action="toggle-verified" data-id="${esc(member.id)}">${member.verified ? 'Unverify' : 'Verify'}</button><button class="small-action" data-role-action="toggle-member-availability" data-id="${esc(member.id)}">${member.available ? 'Pause' : 'Enable'}</button><button class="small-action danger-action" data-role-action="remove-member" data-id="${esc(member.id)}">Remove</button></div></td></tr>`).join('');
-  const ledgerRows = [...state.bookings].sort((a, b) => b.createdAt - a.createdAt).map((booking) => {
-    const member = booking.memberId ? memberById(booking.memberId) : null;
-    return `<tr><td><strong>${esc(booking.id)}</strong><small>${dayLabel(booking.date)}</small></td><td>${esc(serviceCatalog[booking.service].label)}</td><td>${member ? esc(member.name) : 'Review needed'}</td><td><span class="request-status ${statusClass(booking.status)}">${esc(booking.status)}</span></td><td>${money(booking.quote.total)}</td><td>${money(booking.quote.payout)}</td><td>${money(booking.quote.welfare)}</td><td>${booking.status === 'Settled' ? `<button class="small-action" data-role-action="invoice" data-id="${esc(booking.id)}">Invoice</button>` : '-'}</td></tr>`;
-  }).join('');
-  const serviceRows = Object.keys(serviceCatalog).map((key) => {
-    const rule = state.settings.rules[key];
-    return `<div class="rule-row"><label>${esc(serviceCatalog[key].cardTitle)}<small>Starting estimate</small></label><input name="base-${serviceCatalog[key].slug}" type="number" min="1" value="${Number(rule.basePrice)}" aria-label="${esc(key)} estimate" /><label class="floor-label">Wage floor</label><input name="floor-${serviceCatalog[key].slug}" type="number" min="1" value="${Number(rule.wageFloor)}" aria-label="${esc(key)} wage floor" /></div>`;
-  }).join('');
-  roleView.innerHTML = `
-    <section class="role-hero admin-hero" id="adminOverview"><div><span class="eyebrow">FEDERATION ADMINISTRATION</span><h1>One co-operative view of the work.</h1><p>Review membership, availability, fair allocation activity and itemized settlements.</p></div><button class="small-action danger-action reset-button" data-role-action="reset-demo">Reset demo data</button></section>
-    <section class="role-stats admin-stats"><article><small>Verified members</small><strong>${verified} / ${state.members.length}</strong></article><article><small>Open requests</small><strong>${open}</strong></article><article><small>Bookings recorded</small><strong>${state.bookings.length}</strong></article><article><small>Welfare fund posted</small><strong>${money(totalWelfare)}</strong></article></section>
-    <section class="role-section" id="adminMembers"><div class="role-section-head"><div><span class="eyebrow">CO-OPERATIVE ROSTER</span><h2>Member verification and availability</h2></div><span class="section-count">${state.members.length} profiles</span></div>
-      <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Member</th><th>Skill</th><th>Certificate</th><th>Jobs · 7d</th><th>Membership</th><th>Availability</th><th>Actions</th></tr></thead><tbody>${members || '<tr><td colspan="7">No member profiles.</td></tr>'}</tbody></table></div>
-      <form class="add-member-form" id="addMemberForm"><div><span class="eyebrow">ADD A MEMBER PROFILE</span><h3>Register a demo cooperative member</h3></div><div class="field-grid"><div class="field"><label for="newMemberName">MEMBER NAME</label><input id="newMemberName" name="name" required maxlength="70" /></div><div class="field"><label for="newMemberSkill">PRIMARY SKILL</label><select id="newMemberSkill" name="skill">${Object.keys(serviceCatalog).map((key) => `<option value="${esc(key)}">${esc(serviceCatalog[key].cardTitle)}</option>`).join('')}</select></div><div class="field full"><label for="newMemberCoop">CO-OPERATIVE</label><input id="newMemberCoop" name="cooperative" value="Indiranagar Co-operative" required maxlength="80" /></div><div class="field full"><label for="newMemberCertificate">CERTIFICATION / SKILL RECORD</label><input id="newMemberCertificate" name="certificate" placeholder="For example, Electrical Safety" maxlength="80" /></div><fieldset class="field full area-checks"><legend>SERVICE AREAS</legend>${serviceAreas.map((area) => `<label><input type="checkbox" name="areas" value="${area}" checked /> ${area}</label>`).join('')}</fieldset></div><button class="button button-primary" type="submit">Add unverified profile</button><p class="fine-print">New profiles start unverified and cannot receive bookings until verified.</p></form>
-    </section>
-    <section class="role-section" id="adminLedger"><div class="role-section-head"><div><span class="eyebrow">AUDIT VIEW</span><h2>Booking and settlement ledger</h2></div><span class="section-count">${state.ledger.length} settled entries</span></div><div class="admin-table-wrap"><table class="admin-table ledger-table"><thead><tr><th>Request</th><th>Service</th><th>Assigned member</th><th>Status</th><th>Customer total</th><th>Member payout</th><th>Welfare</th><th>Invoice</th></tr></thead><tbody>${ledgerRows || '<tr><td colspan="8">No requests recorded.</td></tr>'}</tbody></table></div></section>
-    <section class="role-section" id="adminRules"><div class="role-section-head"><div><span class="eyebrow">FEDERATION POLICY</span><h2>Wage floor and contribution rules</h2></div></div><form class="policy-form" id="policyForm"><div class="rate-grid"><label>Worker welfare contribution (%)<input name="welfareRate" type="number" min="0" max="40" step="0.5" value="${(state.settings.welfareRate * 100).toFixed(1)}" /></label><label>Co-operative operations (%)<input name="operationsRate" type="number" min="0" max="40" step="0.5" value="${(state.settings.operationsRate * 100).toFixed(1)}" /></label></div><div class="rule-grid">${serviceRows}</div><div class="policy-actions"><button class="button button-primary" type="submit">Save federation policy</button><span class="fine-print">Existing requests keep their original quote. New bookings use these values.</span></div><p class="fine-print">The estimate increases automatically when needed to preserve the configured worker wage floor. These are demonstration rules, not a real federation policy.</p></form></section>`;
+function showModal(title, body) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = `<div class="modal-body">${body}</div>`; modal.showModal(); }
+function closeModal() { if (modal.open) modal.close(); }
+async function loadInvoice(id) {
+  const result = await api(`/api/bookings/${encodeURIComponent(id)}/invoice`);
+  const booking = result.invoice;
+  showModal('Service invoice', `<div class="invoice"><p class="eyebrow">SAHAAYA · ${escapeHtml(result.reference)}</p><h3>${escapeHtml(booking.service)}</h3><p class="muted small">${escapeHtml(booking.id)} · Settled ${booking.settled_at ? new Date(booking.settled_at*1000).toLocaleString('en-IN') : ''}</p><div class="invoice-line"><span>Member payout</span><strong>${money(booking.quote.payout)}</strong></div><div class="invoice-line"><span>Worker welfare fund</span><strong>${money(booking.quote.welfare)}</strong></div><div class="invoice-line"><span>Co-operative operations</span><strong>${money(booking.quote.operations)}</strong></div><div class="invoice-line invoice-total"><span>Total settled · demo record</span><strong>${money(booking.quote.total)}</strong></div></div><div class="button-row" style="margin-top:15px"><button class="button button-primary" data-action="print-invoice">Print / save invoice</button><button class="small-button" data-action="close-modal">Close</button></div>`);
 }
+function showReview(id) { showModal('Share feedback', `<form id="reviewForm" data-id="${escapeHtml(id)}" class="form-stack"><div class="field"><label for="reviewRating">YOUR RATING</label><select id="reviewRating" name="rating"><option value="5">5 · Excellent</option><option value="4">4 · Good</option><option value="3">3 · Okay</option><option value="2">2 · Could be better</option><option value="1">1 · Poor</option></select></div><div class="field"><label for="reviewFeedback">COMMENT <span class="muted">(OPTIONAL)</span></label><textarea id="reviewFeedback" name="feedback" maxlength="500" placeholder="What should the co-operative know?"></textarea></div><button class="button button-primary" type="submit">Submit feedback</button></form>`); }
+function showAddWorker() { showModal('Add a worker account', `<form id="addWorkerForm" class="form-stack"><div class="field-grid"><div class="field"><label>FULL NAME</label><input name="name" required maxlength="80" /></div><div class="field"><label>EMAIL</label><input name="email" type="email" required /></div><div class="field"><label>TEMPORARY PASSWORD</label><input name="password" type="password" minlength="10" required /></div><div class="field"><label>SKILL</label><select name="skill">${['Electrician','Plumber','Carpenter','Care worker'].map((skill) => `<option>${skill}</option>`).join('')}</select></div><div class="field"><label>CO-OPERATIVE</label><input name="cooperative" /></div><div class="field"><label>CERTIFICATE</label><input name="certificate" /></div><div class="field full"><label>SERVICE AREAS</label><div class="check-grid">${state.areas.map((area) => `<label class="check-chip"><input type="checkbox" name="areas" value="${escapeHtml(area)}" /> ${escapeHtml(area)}</label>`).join('')}</div></div></div><p class="muted small">Share the temporary password with the worker through a private channel. Their account is created as verified by the federation.</p><button class="button button-primary" type="submit">Create worker account</button></form>`); }
 
-function renderRoleView() {
-  if (state.role === 'worker') renderWorker();
-  else if (state.role === 'admin') renderAdmin();
-}
-
-function navForRole(role) {
-  const items = role === 'customer'
-    ? [['#overview', '⌂', 'Overview'], ['#services', '＋', 'Book a service'], ['#allocation', '⇄', 'Fair allocation'], ['#welfare', '♡', 'Worker welfare'], ['#bookings', '▤', 'My requests']]
-    : role === 'worker'
-      ? [['#workerDashboard', '⌂', 'Worker dashboard'], ['#workerOffers', '▤', 'Offers and jobs'], ['#workerEarnings', '₹', 'Member ledger']]
-      : [['#adminOverview', '⌂', 'Federation overview'], ['#adminMembers', '♙', 'Member roster'], ['#adminLedger', '▤', 'Booking ledger'], ['#adminRules', '⚙', 'Federation policy']];
-  document.querySelector('#sidebarNavigation').innerHTML = items.map(([href, icon, label], index) => `<a class="nav-link ${index === 0 ? 'active' : ''}" href="${href}"><span class="nav-icon">${icon}</span>${label}</a>`).join('');
-}
-
-function updateProfile() {
-  const worker = memberById(state.currentMemberId);
-  const profile = state.role === 'customer' ? { name: 'Riya Sharma', meta: 'Customer account', initials: 'RS' }
-    : state.role === 'worker' ? { name: worker?.name || 'Co-operative member', meta: 'Member workspace', initials: worker?.initials || 'WM' }
-      : { name: 'Federation Admin', meta: 'Co-operative workspace', initials: 'FA' };
-  document.querySelector('#profileName').textContent = profile.name;
-  document.querySelector('#profileMeta').textContent = profile.meta;
-  document.querySelector('#profileAvatar').textContent = profile.initials;
-  document.querySelector('#topAvatar').textContent = profile.initials;
-}
-
-function switchRole(role) {
-  if (!['customer', 'worker', 'admin'].includes(role)) return;
-  state.role = role;
-  persist();
-  document.querySelectorAll('.role-tab').forEach((tab) => {
-    const selected = tab.dataset.role === role;
-    tab.classList.toggle('active', selected);
-    tab.setAttribute('aria-selected', String(selected));
-  });
-  customerView.hidden = role !== 'customer';
-  roleView.hidden = role === 'customer';
-  navForRole(role);
-  updateProfile();
-  if (role !== 'customer') renderRoleView();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function renderAll() {
-  renderCustomer();
-  if (state.role !== 'customer') renderRoleView();
-  updateProfile();
-}
-
-function findBooking(id) {
-  return state.bookings.find((booking) => booking.id === id) || null;
-}
-
-function openInvoice(booking) {
-  if (!booking) return;
-  const member = booking.memberId ? memberById(booking.memberId) : null;
-  const quote = booking.quote;
-  openDialog(`Invoice · ${booking.id}`, `<div class="invoice-sheet"><div class="invoice-brand"><span class="brand-mark">s</span><span><strong>Sahaaya</strong><small>CO-OPERATIVE SERVICES</small></span><span class="invoice-status">${esc(booking.status)}</span></div><div class="invoice-meta"><div><small>INVOICE / REQUEST</small><strong>${esc(booking.id)}</strong></div><div><small>DATE</small><strong>${dayLabel(booking.date)}</strong></div><div><small>PAYMENT MODE</small><strong>${esc(booking.paymentMethod || 'Awaiting payment')}</strong></div></div><h3>${esc(serviceCatalog[booking.service].label)}</h3><p>${esc(booking.address)} · ${esc(booking.area)} · ${esc(booking.time)}</p><p>Member: ${esc(member?.name || 'Not assigned')} · ${esc(member?.cooperative || '')}</p><div class="invoice-lines"><div><span>Member payout</span><strong>${money(quote.payout)}</strong></div><div><span>Worker welfare fund</span><strong>${money(quote.welfare)}</strong></div><div><span>Co-operative operations</span><strong>${money(quote.operations)}</strong></div><div class="total"><span>Total</span><strong>${money(quote.total)}</strong></div><div class="floor-callout"><span>Member wage floor</span><strong>${money(quote.floor)} minimum</strong></div></div><p class="fine-print">${booking.status === 'Settled' ? `Simulated payment recorded ${new Date(booking.paidAt).toLocaleString('en-IN')}.` : 'This is a preview; no real payment has been processed.'} Invoice values are saved locally for this demonstration.</p><button class="button button-primary" id="closeInvoice">Close invoice</button></div>`);
-  document.querySelector('#closeInvoice').addEventListener('click', closeDialog);
-}
-
-function openPayment(booking) {
-  openDialog(`Settle request · ${booking.id}`, `<form class="dialog-body" id="paymentForm"><p>The job is marked complete. Choose a simulated payment mode to record the itemized settlement.</p><div class="payment-box"><div class="payment-row"><span>Member payout</span><strong>${money(booking.quote.payout)}</strong></div><div class="payment-row"><span>Worker welfare fund</span><strong>${money(booking.quote.welfare)}</strong></div><div class="payment-row"><span>Co-operative operations</span><strong>${money(booking.quote.operations)}</strong></div><div class="payment-row total"><span>Total</span><strong>${money(booking.quote.total)}</strong></div></div><div class="field"><label for="paymentMethod">SIMULATED PAYMENT METHOD</label><select id="paymentMethod" name="method"><option>UPI demo</option><option>Card sandbox</option><option>Cash recorded</option></select></div><p class="fine-print">No money or card details are collected by this local website.</p><div class="form-actions"><button class="button button-primary" type="submit">Record settlement</button></div></form>`);
-  document.querySelector('#paymentForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const method = String(new FormData(event.currentTarget).get('method'));
-    booking.paymentMethod = method;
-    booking.status = 'Settled';
-    booking.paidAt = Date.now();
-    state.ledger.push({ bookingId: booking.id, memberId: booking.memberId, payout: booking.quote.payout, welfare: booking.quote.welfare, operations: booking.quote.operations, total: booking.quote.total, createdAt: booking.paidAt });
-    persist();
-    renderAll();
-    closeDialog();
-    showToast(`${booking.id} was settled in demo mode.`);
-  });
-}
-
-function openFeedback(booking) {
-  openDialog(`Feedback · ${booking.id}`, `<form class="dialog-body" id="feedbackForm"><p>How did the service go? Feedback helps the cooperative review service quality.</p><div class="field"><label for="feedbackRating">RATING</label><select id="feedbackRating" name="rating"><option value="5">5 · Excellent</option><option value="4">4 · Good</option><option value="3">3 · Okay</option><option value="2">2 · Needs follow-up</option><option value="1">1 · Report an issue</option></select></div><div class="field"><label for="feedbackText">COMMENT</label><textarea id="feedbackText" name="comment" maxlength="500" placeholder="Share a short comment"></textarea></div><div class="form-actions"><button class="button button-primary" type="submit">Send feedback</button></div></form>`);
-  document.querySelector('#feedbackForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    booking.feedback = { rating: Number(form.get('rating')), comment: String(form.get('comment') || '').trim(), createdAt: Date.now() };
-    persist();
-    renderAll();
-    closeDialog();
-    showToast('Feedback saved for federation review.');
-  });
-}
-
-function reassignBooking(booking, excluded) {
-  const candidates = allocateMember(booking.service, booking.area, booking.date, booking.time, excluded);
-  if (!candidates.length) {
-    booking.memberId = null;
-    booking.status = 'Needs review';
-    booking.assignmentReason = 'No verified and available member remains in the eligible pool.';
-    return null;
+async function refresh() { await loadWorkspace(state.view); }
+async function handleApiAction(button) {
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+  if (action === 'navigate') return navigate(button.dataset.view);
+  if (action === 'book-service') { $('#bookService').value = button.dataset.service; $('#bookService').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#bookAddress').focus({ preventScroll: true }); return; }
+  if (action === 'availability') { await api('/api/workers/availability', { method: 'PATCH', body: jsonBody({ available: !state.worker.available }) }); showToast('Availability updated.'); return refresh(); }
+  if (action === 'booking-cancel') { if (!confirm('Cancel this service request?')) return; await api(`/api/bookings/${id}/cancel`, { method: 'POST', body: '{}' }); showToast('Request cancelled.'); return refresh(); }
+  if (action === 'booking-accept' || action === 'booking-decline' || action === 'booking-start' || action === 'booking-complete') {
+    const endpoint = { 'booking-accept': 'accept', 'booking-decline': 'decline', 'booking-start': 'start', 'booking-complete': 'complete' }[action];
+    await api(`/api/bookings/${id}/${endpoint}`, { method: 'POST', body: '{}' }); showToast(`Booking ${id} updated.`); return refresh();
   }
-  const next = candidates[0];
-  booking.memberId = next.member.id;
-  booking.assignedMemberIds.push(next.member.id);
-  booking.status = 'Offer sent';
-  booking.assignmentReason = `Reassigned fairly: ${next.workload} recent jobs; ${next.distance.toFixed(1)} km away.`;
-  next.member.lastAssignedAt = Date.now();
-  return next.member;
+  if (action === 'booking-settle') { await api(`/api/bookings/${id}/settle`, { method: 'POST', body: '{}' }); showToast('Demo settlement recorded. No money was charged.'); return refresh(); }
+  if (action === 'invoice') return loadInvoice(id);
+  if (action === 'review') return showReview(id);
+  if (action === 'verify-worker') { const worker = state.workers.find((item) => item.id === id); await api(`/api/admin/workers/${id}`, { method: 'PATCH', body: jsonBody({ verified: !worker.verified }) }); showToast('Worker verification updated.'); return refresh(); }
+  if (action === 'pause-worker') { const worker = state.workers.find((item) => item.id === id); await api(`/api/admin/workers/${id}`, { method: 'PATCH', body: jsonBody({ available: !worker.available }) }); showToast('Worker availability updated.'); return refresh(); }
+  if (action === 'remove-worker') { if (!confirm('Remove this worker account and profile? This can’t be undone.')) return; await api(`/api/admin/workers/${id}`, { method: 'DELETE' }); showToast('Worker account removed.'); return refresh(); }
+  if (action === 'assign-booking') { const workerId = $(`#assign-${CSS.escape(id)}`).value; await api(`/api/admin/bookings/${id}/assign`, { method: 'POST', body: jsonBody({ worker_id: workerId }) }); showToast('Worker offer assigned.'); return refresh(); }
+  if (action === 'add-worker') return showAddWorker();
+  if (action === 'close-modal') return closeModal();
+  if (action === 'print-invoice') { window.print(); return; }
 }
 
-function reassignOpenRequests(memberId) {
-  for (const booking of state.bookings.filter((item) => item.memberId === memberId && item.status === 'Offer sent')) {
-    reassignBooking(booking, booking.assignedMemberIds || [memberId]);
-  }
-}
+document.addEventListener('click', async (event) => {
+  const authTab = event.target.closest('[data-auth-mode]');
+  if (authTab) { state.authMode = authTab.dataset.authMode; renderAuth(); return; }
+  const nav = event.target.closest('[data-view]');
+  if (nav) { navigate(nav.dataset.view); return; }
+  const action = event.target.closest('[data-action]');
+  if (!action) return;
+  try { await handleApiAction(action); } catch (error) { showToast(error.message); }
+});
+$('#modalClose').addEventListener('click', closeModal);
+modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+$('#signOut').addEventListener('click', async () => { try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch {} state.user = null; state.authMode = 'login'; renderAuth(); });
 
-function toggleAvailability(member) {
-  member.available = !member.available;
-  if (!member.available) reassignOpenRequests(member.id);
-  persist();
-  renderAll();
-  showToast(`${member.name} is ${member.available ? 'available for new work' : 'unavailable for new work'}.`);
-}
-
-function handleBookingAction(event) {
-  const button = event.target.closest('[data-booking-action]');
-  if (!button) return;
-  const booking = findBooking(button.dataset.id);
-  if (!booking) return;
-  const action = button.dataset.bookingAction;
-  if (action === 'cancel') {
-    if (!['Offer sent', 'Confirmed'].includes(booking.status)) return;
-    booking.status = 'Cancelled';
-    booking.cancelledAt = Date.now();
-    persist(); renderAll(); showToast(`${booking.id} cancelled before work began.`);
-  } else if (action === 'pay' && booking.status === 'Completed') openPayment(booking);
-  else if (action === 'invoice') openInvoice(booking);
-  else if (action === 'feedback' && booking.status === 'Settled' && !booking.feedback) openFeedback(booking);
-  else if (action === 'retry' && booking.status === 'Needs review') {
-    const assigned = reassignBooking(booking, booking.assignedMemberIds || []);
-    persist(); renderAll();
-    showToast(assigned ? `A new offer was sent to ${assigned.name}.` : 'No eligible member is available yet.');
-  }
-}
-
-function handleRoleAction(action, id) {
-  const booking = id ? findBooking(id) : null;
-  const member = id ? memberById(id) : memberById(state.currentMemberId);
-  if (action === 'accept-offer' && booking && booking.status === 'Offer sent') {
-    booking.status = 'Confirmed'; booking.acceptedAt = Date.now();
-    persist(); renderAll(); showToast(`${booking.id} accepted. The customer can see the confirmation.`);
-  } else if (action === 'decline-offer' && booking && booking.status === 'Offer sent') {
-    const oldMember = memberById(booking.memberId);
-    const assigned = reassignBooking(booking, booking.assignedMemberIds || [booking.memberId]);
-    persist(); renderAll();
-    showToast(assigned ? `${oldMember?.name || 'Member'} declined; the offer moved to ${assigned.name}.` : 'No other eligible member is available. The federation will review this request.');
-  } else if (action === 'start-job' && booking && booking.status === 'Confirmed') {
-    booking.status = 'In progress'; booking.startedAt = Date.now();
-    persist(); renderAll(); showToast(`${booking.id} marked in progress.`);
-  } else if (action === 'complete-job' && booking && booking.status === 'In progress') {
-    booking.status = 'Completed'; booking.completedAt = Date.now();
-    persist(); renderAll(); showToast(`${booking.id} is complete and ready for customer settlement.`);
-  } else if (action === 'toggle-availability' && member) toggleAvailability(member);
-  else if (action === 'toggle-member-availability' && member) toggleAvailability(member);
-  else if (action === 'toggle-verified' && member) {
-    member.verified = !member.verified;
-    if (!member.verified) reassignOpenRequests(member.id);
-    persist(); renderAll(); showToast(`${member.name}'s verification is now ${member.verified ? 'active' : 'paused'}.`);
-  } else if (action === 'remove-member' && member) {
-    const busy = state.bookings.some((item) => item.memberId === member.id && ['Confirmed', 'In progress', 'Completed'].includes(item.status));
-    if (busy) { showToast('This member has an active job and cannot be removed.'); return; }
-    if (!window.confirm(`Remove ${member.name} from the demo roster?`)) return;
-    reassignOpenRequests(member.id);
-    state.members = state.members.filter((item) => item.id !== member.id);
-    if (state.currentMemberId === member.id) state.currentMemberId = state.members[0]?.id || null;
-    persist(); renderAll(); showToast(`${member.name} was removed from the demo roster.`);
-  } else if (action === 'invoice' && booking) openInvoice(booking);
-  else if (action === 'reset-demo') {
-    if (!window.confirm('Reset local demo bookings, ledger and member settings?')) return;
-    state = defaultState(); persist(); renderAll(); switchRole('admin'); showToast('Demo data has been reset.');
-  }
-}
-
-function handleRoleSubmit(event) {
+document.addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (event.target.id === 'addMemberForm') {
-    const form = new FormData(event.target);
-    const name = String(form.get('name') || '').trim();
-    const skill = String(form.get('skill') || 'Electrician');
-    const areas = form.getAll('areas').map(String).filter((area) => serviceAreas.includes(area));
-    if (!name || !areas.length) { showToast('Enter a name and select at least one service area.'); return; }
-    const member = {
-      id: `m-${Date.now().toString(36)}`,
-      name,
-      initials: name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase(),
-      skill,
-      cooperative: String(form.get('cooperative') || '').trim(),
-      certificate: String(form.get('certificate') || '').trim(),
-      serviceAreas: areas,
-      distances: Object.fromEntries(areas.map((area) => [area, 1.5])),
-      rating: 0,
-      verified: false,
-      available: true,
-      jobHistory: [],
-      lastAssignedAt: 0,
-    };
-    state.members.push(member);
-    persist(); renderAll(); showToast(`${name} added. Verify the member before booking.`);
-  } else if (event.target.id === 'policyForm') {
-    const form = new FormData(event.target);
-    const welfareRate = Number(form.get('welfareRate')) / 100;
-    const operationsRate = Number(form.get('operationsRate')) / 100;
-    if (!Number.isFinite(welfareRate) || !Number.isFinite(operationsRate) || welfareRate < 0 || operationsRate < 0 || welfareRate + operationsRate >= 0.5) {
-      showToast('Combined welfare and operations rates must be below 50%.'); return;
+  const form = event.target;
+  const data = new FormData(form);
+  try {
+    if (form.id === 'loginForm') {
+      await api('/api/auth/login', { method: 'POST', body: jsonBody({ email: data.get('email'), password: data.get('password') }) });
+      state.view = undefined; await loadWorkspace(); showToast('Signed in.');
+    } else if (form.id === 'registerForm') {
+      const payload = { name: data.get('name'), email: data.get('email'), password: data.get('password'), role: data.get('role'), skill: data.get('skill'), areas: data.getAll('areas'), cooperative: data.get('cooperative'), certificate: data.get('certificate') };
+      await api('/api/auth/register', { method: 'POST', body: jsonBody(payload) });
+      state.view = undefined; await loadWorkspace(); showToast(payload.role === 'worker' ? 'Account created. Federation review is pending.' : 'Your customer account is ready.');
+    } else if (form.id === 'bookingForm') {
+      await api('/api/bookings', { method: 'POST', body: jsonBody(Object.fromEntries(data.entries())) });
+      showToast('Service request created with an itemized quote.'); await refresh();
+    } else if (form.id === 'reviewForm') {
+      const id = form.dataset.id;
+      await api(`/api/bookings/${id}/review`, { method: 'POST', body: jsonBody({ rating: data.get('rating'), feedback: data.get('feedback') }) });
+      closeModal(); showToast('Thank you for your feedback.'); await refresh();
+    } else if (form.id === 'addWorkerForm') {
+      await api('/api/admin/workers', { method: 'POST', body: jsonBody({ name: data.get('name'), email: data.get('email'), password: data.get('password'), skill: data.get('skill'), cooperative: data.get('cooperative'), certificate: data.get('certificate'), areas: data.getAll('areas') }) });
+      closeModal(); showToast('Worker account created.'); await refresh();
+    } else if (form.id === 'policyForm') {
+      const services = state.services.map((service) => ({ slug: service.slug, base_price: data.get(`base-${service.slug}`), wage_floor: data.get(`floor-${service.slug}`) }));
+      await api('/api/admin/settings', { method: 'PATCH', body: jsonBody({ welfare_rate: Number(data.get('welfare')) / 100, operations_rate: Number(data.get('operations')) / 100, services }) });
+      showToast('Rates and wage floors saved.'); await refresh();
     }
-    const nextRules = {};
-    for (const key of Object.keys(serviceCatalog)) {
-      const slug = serviceCatalog[key].slug;
-      const basePrice = Number(form.get(`base-${slug}`));
-      const wageFloor = Number(form.get(`floor-${slug}`));
-      if (!Number.isFinite(basePrice) || !Number.isFinite(wageFloor) || basePrice < 1 || wageFloor < 1) {
-        showToast(`Enter positive prices and a wage floor for ${serviceCatalog[key].cardTitle}.`); return;
-      }
-      nextRules[key] = { basePrice, wageFloor };
-    }
-    state.settings = { welfareRate, operationsRate, rules: nextRules };
-    persist(); renderAll(); showToast('Federation rules saved. Existing requests keep their quoted split.');
-  }
-}
-
-function handleRoleClick(event) {
-  const button = event.target.closest('[data-role-action]');
-  if (button) handleRoleAction(button.dataset.roleAction, button.dataset.id || null);
-}
-
-document.querySelectorAll('.book-service').forEach((button) => button.addEventListener('click', () => openService(button.dataset.service)));
-document.querySelectorAll('.role-tab').forEach((button) => button.addEventListener('click', () => switchRole(button.dataset.role)));
-document.querySelector('#closeDialog').addEventListener('click', closeDialog);
-dialog.addEventListener('click', (event) => { if (event.target === dialog) closeDialog(); });
-document.querySelector('#requestList').addEventListener('click', handleBookingAction);
-roleView.addEventListener('click', handleRoleClick);
-roleView.addEventListener('submit', handleRoleSubmit);
-roleView.addEventListener('change', (event) => {
-  if (event.target.id === 'workerMemberSelect') {
-    state.currentMemberId = event.target.value;
-    persist(); renderWorker(); updateProfile();
-  }
-});
-document.querySelector('#sidebarNavigation').addEventListener('click', (event) => {
-  const link = event.target.closest('.nav-link');
-  if (!link) return;
-  document.querySelectorAll('.nav-link').forEach((item) => item.classList.toggle('active', item === link));
+  } catch (error) { showToast(error.message); }
 });
 
-function start() {
-  persist();
-  navForRole(state.role);
-  document.querySelectorAll('.role-tab').forEach((tab) => {
-    const selected = tab.dataset.role === state.role;
-    tab.classList.toggle('active', selected);
-    tab.setAttribute('aria-selected', String(selected));
-  });
-  customerView.hidden = state.role !== 'customer';
-  roleView.hidden = state.role === 'customer';
-  renderAll();
-  if (state.role !== 'customer') renderRoleView();
+async function boot() {
+  try {
+    const session = await api('/api/session');
+    if (session.authenticated) { state.user = session.user; await loadWorkspace(); }
+    else { await api('/api/bootstrap').catch(() => {}); state.areas = ['Indiranagar','Domlur','HAL']; renderAuth(); }
+  } catch (error) {
+    state.areas = ['Indiranagar','Domlur','HAL']; renderAuth(); showToast(`Server connection failed: ${error.message}`);
+  }
 }
-
-start();
+boot();
